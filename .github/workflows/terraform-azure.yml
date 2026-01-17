@@ -25,6 +25,8 @@ jobs:
 
       - name: Azure login (OIDC)
         uses: azure/login@v2
+        env:
+            TF_VAR_ssh_public_key: ${{ vars.TF_VAR_SSH_PUBLIC_KEY }}
         with:
           client-id: ${{ vars.AZURE_CLIENT_ID }}
           tenant-id: ${{ vars.AZURE_TENANT_ID }}
