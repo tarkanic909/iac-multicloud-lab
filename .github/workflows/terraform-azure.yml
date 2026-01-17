@@ -12,6 +12,8 @@ permissions:
 
 env:
   TF_VAR_ssh_public_key: ${{ vars.TF_VAR_SSH_PUBLIC_KEY }}
+  TF_VAR_vm_size: ${{ vars.TF_VAR__VM_SIZE }}
+  TF_VAR_location: ${{ vars.TF_VAR_LOCATTION }}
   # Azurem provider vars
   ARM_USE_OIDC: "true"
   ARM_CLIENT_ID: ${{ vars.AZURE_CLIENT_ID }}
