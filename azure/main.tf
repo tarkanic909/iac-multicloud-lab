@@ -37,7 +37,7 @@ variable "admin_username" {
   default = "azureuser"
 }
 
-variable "ssh_public_key" {
+variable "SSH_PUBLIC_KEY" {
   type        = string
   description = "SSH public key in OpenSSH format (ssh-ed25519 AAAA...)"
 }
