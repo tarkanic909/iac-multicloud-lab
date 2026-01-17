@@ -37,7 +37,7 @@ variable "admin_username" {
   default = "azureuser"
 }
 
-variable "SSH_PUBLIC_KEY" {
+variable "ssh_public_key" {
   type        = string
   description = "SSH public key in OpenSSH format (ssh-ed25519 AAAA...)"
 }
@@ -129,7 +129,7 @@ resource "azurerm_linux_virtual_machine" "vm" {
 
   admin_ssh_key {
     username   = var.admin_username
-    public_key = var.SSH_PUBLIC_KEY
+    public_key = var.ssh_public_key
   }
 
   os_disk {
