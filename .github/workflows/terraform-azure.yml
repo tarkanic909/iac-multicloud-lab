@@ -5,7 +5,6 @@ on:
     paths: ["azure/**"]
   push:
     branches: ["master"]
-    paths: ["azure/**"]
 
 permissions:
   id-token: write
