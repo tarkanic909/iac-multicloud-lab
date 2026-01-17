@@ -4,7 +4,7 @@ on:
   pull_request:
     paths: ["azure/**"]
   push:
-    branches: ["main"]
+    branches: ["master"]
     paths: ["azure/**"]
 
 permissions:
