@@ -1,52 +1,46 @@
-name: terraform-azure
+name: azure-vm
 
 on:
-  pull_request:
-    paths: ["azure/**"]
-
-  push:
-    branches: ["master"]
-    paths: ["azure/**"]
-
   workflow_dispatch:
     inputs:
       action:
-        description: 'Akcia'
-        required: true
-        default: 'plan'
+        description: "What to do"
         type: choice
+        required: true
+        default: apply
         options:
-          - plan
           - apply
           - destroy
       confirm_destroy:
-        description: 'Pre destroy napíš "destroy"'
+        description: 'Type "destroy" to confirm'
         required: false
+        default: ""
 
 permissions:
   id-token: write
   contents: read
-  pull-requests: write
 
 env:
+  TF_IN_AUTOMATION: "true"
+
+  # Terraform variables (TF_VAR_*)
   TF_VAR_ssh_public_key: ${{ vars.TF_VAR_SSH_PUBLIC_KEY }}
-  TF_VAR_vm_size:         ${{ vars.TF_VAR_VM_SIZE }}
-  TF_VAR_location:        ${{ vars.TF_VAR_LOCATION }}
-  ARM_USE_OIDC:           "true"
-  ARM_CLIENT_ID:          ${{ vars.AZURE_CLIENT_ID }}
-  ARM_TENANT_ID:          ${{ vars.AZURE_TENANT_ID }}
-  ARM_SUBSCRIPTION_ID:    ${{ vars.AZURE_SUBSCRIPTION_ID }}
-  TF_IN_AUTOMATION:       "true"
+  TF_VAR_vm_size:        ${{ vars.TF_VAR_VM_SIZE }}
+  TF_VAR_location:       ${{ vars.TF_VAR_LOCATION }}
+
+  # Azure provider (OIDC)
+  ARM_USE_OIDC:        "true"
+  ARM_CLIENT_ID:       ${{ vars.AZURE_CLIENT_ID }}
+  ARM_TENANT_ID:       ${{ vars.AZURE_TENANT_ID }}
+  ARM_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID }}
 
 jobs:
-
-  plan:
+  run:
     runs-on: ubuntu-latest
     defaults:
       run:
         working-directory: azure
-    outputs:
-      has_changes: ${{ steps.plan.outputs.exitcode }}
+
     steps:
       - uses: actions/checkout@v4
 
@@ -54,7 +48,7 @@ jobs:
         with:
           terraform_version_file: azure/.terraform-version
 
-      - name: Azure login
+      - name: Azure login (OIDC)
         uses: azure/login@v2
         with:
           client-id:       ${{ vars.AZURE_CLIENT_ID }}
@@ -62,124 +56,12 @@ jobs:
           subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
 
       - name: Terraform init
-        run: terraform init
-
-      - name: Terraform fmt
-        run: terraform fmt -check
-
-      - name: Terraform validate
-        run: terraform validate
-
-      - name: Terraform plan
-        id: plan
-        run: |
-          set +e
-          terraform plan -input=false -detailed-exitcode -out=tfplan 2>&1 | tee plan.txt
-          TF_EXIT=${PIPESTATUS[0]}
-          echo "exitcode=${TF_EXIT}" >> "$GITHUB_OUTPUT"
-          set -e
-          # 0 = no changes, 1 = error, 2 = changes
-          [[ $TF_EXIT -eq 1 ]] && exit 1 || exit 0
-
-      - name: Komentár na PR
-        if: github.event_name == 'pull_request'
-        uses: actions/github-script@v7
-        with:
-          script: |
-            const fs = require('fs');
-            const plan = fs.readFileSync('azure/plan.txt', 'utf8');
-            const body = [
-              '### 🏗️ Terraform Plan',
-              '',
-              '```',
-              plan.slice(-65000),
-              '```',
-            ].join('\n');
-            github.rest.issues.createComment({
-              issue_number: context.issue.number,
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              body
-            });
-
-      - name: Upload plan
-        uses: actions/upload-artifact@v4
-        with:
-          name: azure-tfplan
-          path: azure/tfplan
-          retention-days: 1
-
-  apply:
-    if: |
-      (
-        github.ref == 'refs/heads/master' &&
-        github.event_name == 'push' &&
-        needs.plan.outputs.has_changes == '2'
-      ) || (
-        github.event_name == 'workflow_dispatch' &&
-        github.event.inputs.action == 'apply'
-      )
-    needs: plan
-    runs-on: ubuntu-latest
-    environment: production
-    defaults:
-      run:
-        working-directory: azure
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: hashicorp/setup-terraform@v3
-        with:
-          terraform_version_file: azure/.terraform-version
-
-      - name: Azure login
-        uses: azure/login@v2
-        with:
-          client-id:       ${{ vars.AZURE_CLIENT_ID }}
-          tenant-id:       ${{ vars.AZURE_TENANT_ID }}
-          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
-
-      - name: Terraform init
-        run: terraform init
-
-      - name: Download plan
-        uses: actions/download-artifact@v4
-        with:
-          name: azure-tfplan
-          path: azure
+        run: terraform init -input=false
 
       - name: Terraform apply
-        run: terraform apply -auto-approve tfplan
-
-  destroy:
-    if: |
-      github.event_name == 'workflow_dispatch' &&
-      github.event.inputs.action == 'destroy' &&
-      github.event.inputs.confirm_destroy == 'destroy'
-    runs-on: ubuntu-latest
-    environment: production
-    defaults:
-      run:
-        working-directory: azure
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: hashicorp/setup-terraform@v3
-        with:
-          terraform_version_file: azure/.terraform-version
-
-      - name: Azure login
-        uses: azure/login@v2
-        with:
-          client-id:       ${{ vars.AZURE_CLIENT_ID }}
-          tenant-id:       ${{ vars.AZURE_TENANT_ID }}
-          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
-
-      - name: Terraform init
-        run: terraform init
-
-      - name: Plan destroy (čo sa zmaže)
-        run: terraform plan -destroy -input=false
+        if: inputs.action == 'apply'
+        run: terraform apply -auto-approve -input=false
 
       - name: Terraform destroy
-        run: terraform destroy -input=false -auto-approve
+        if: inputs.action == 'destroy' && inputs.confirm_destroy == 'destroy'
+        run: terraform destroy -auto-approve -input=false
